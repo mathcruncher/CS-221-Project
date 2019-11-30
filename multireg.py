@@ -3,6 +3,7 @@ import csv
 import string
 import re
 import math
+import random
 
 strip_table = str.maketrans('', '', string.punctuation)
 #strip_table = str.maketrans('', '', '0123456789[]<>*#:@.,;+$%()-"\\/')
@@ -19,25 +20,57 @@ def main():
         for k, v in sorted(word_mean.items()):
             mean_out.write('{} {}\n'.format(k, v))
     
+    
     valence_set = [(strvec_list[i], float(emobank[i][1])) for i in range(len(emobank))]
     arousal_set = [(strvec_list[i], float(emobank[i][2])) for i in range(len(emobank))]
     dominance_set = [(strvec_list[i], float(emobank[i][3])) for i in range(len(emobank))]
     
+    train_len = math.ceil(0.8 * len(emobank))
+    print('Training on {} examples'.format(train_len))
+    random.shuffle(valence_set)
+    random.shuffle(arousal_set)
+    random.shuffle(dominance_set)
+    
+    valence_train = valence_set[ : train_len]
+    arousal_train = arousal_set[ : train_len]
+    dominance_train = dominance_set[ : train_len]
+    
+    valence_test = valence_set[train_len : ]
+    arousal_test = arousal_set[train_len : ]
+    dominance_test = dominance_set[train_len : ]
+    
     print('Training Valence')
-    valence_weights = multipleRegression(100, .01, valence_set)
+    valence_weights = multipleRegression(100, .01, valence_train)
     print('Training Arousal')
-    arousal_weights = multipleRegression(100, .01, arousal_set)
+    arousal_weights = multipleRegression(100, .01, arousal_train)
     print('Training Dominance')
-    dominance_weights = multipleRegression(100, .01, dominance_set)
+    dominance_weights = multipleRegression(100, .01, dominance_train)
 
-    with open('multireg_vad.txt', 'wt', 1) as weightfile:
+    '''with open('multireg_vad.txt', 'wt', 1) as weightfile:
         for token in sorted(valence_weights.keys()):
             weightfile.write('{}, {}, {}, {}\n'.format(
                 token,
                 valence_weights[token],
                 arousal_weights[token],
                 dominance_weights[token]
-            ))
+            ))'''
+    
+    v_terr = 0
+    a_terr = 0
+    d_terr = 0
+    test_len = len(emobank) - train_len
+    print('Test MSE over {} items'.format(test_len))
+    for i in range(test_len):
+        v = dotProduct(valence_weights, valence_test[i][0]) - valence_test[i][1]
+        a = dotProduct(arousal_weights, arousal_test[i][0]) - arousal_test[i][1]
+        d = dotProduct(dominance_weights, dominance_test[i][0]) - dominance_test[i][1]
+        v_terr += v ** 2
+        a_terr += a ** 2
+        d_terr += d ** 2
+    v_terr /= test_len
+    a_terr /= test_len
+    d_terr /= test_len
+    print('Valence: {}\nArousal: {}\nDominance: {}\n'.format(v_terr, a_terr, d_terr))
     
     try:
         while True:

@@ -15,50 +15,41 @@ def main():
     emobank = read_csv('emobank.txt')
     strvec_list = [process_string(row[4]) for row in emobank]
     
-    word_mean = RnMean(strvec_list)
-    with open('multireg_ctr.txt', 'wt', 1) as mean_out:
-        for k, v in sorted(word_mean.items()):
-            mean_out.write('{} {}\n'.format(k, v))
-    
-    
-    valence_set = [(strvec_list[i], float(emobank[i][1])) for i in range(len(emobank))]
-    arousal_set = [(strvec_list[i], float(emobank[i][2])) for i in range(len(emobank))]
-    dominance_set = [(strvec_list[i], float(emobank[i][3])) for i in range(len(emobank))]
-    
+    examples = [(strvec_list[i], float(emobank[i][1]), float(emobank[i][2]), float(emobank[i][3]))
+    for i in range(len(emobank))]
+
     train_len = math.ceil(0.8 * len(emobank))
     print('Training on {} examples'.format(train_len))
-    random.shuffle(valence_set)
-    random.shuffle(arousal_set)
-    random.shuffle(dominance_set)
+    random.shuffle(examples)
     
-    valence_train = valence_set[ : train_len]
-    arousal_train = arousal_set[ : train_len]
-    dominance_train = dominance_set[ : train_len]
+    valence_train = [(examples[i][0], examples[i][1]) for i in range(train_len)]
+    arousal_train = [(examples[i][0], examples[i][2]) for i in range(train_len)]
+    dominance_train = [(examples[i][0], examples[i][3]) for i in range(train_len)]
     
-    valence_test = valence_set[train_len : ]
-    arousal_test = arousal_set[train_len : ]
-    dominance_test = dominance_set[train_len : ]
+    valence_test = [(examples[i][0], examples[i][1]) for i in range(train_len, len(examples))]
+    arousal_test = [(examples[i][0], examples[i][2]) for i in range(train_len, len(examples))]
+    dominance_test = [(examples[i][0], examples[i][3]) for i in range(train_len, len(examples))]
     
     print('Training Valence')
-    valence_weights = multipleRegression(100, .01, valence_train)
+    valence_weights = multipleRegression(200, .01, valence_train)
     print('Training Arousal')
-    arousal_weights = multipleRegression(100, .01, arousal_train)
+    arousal_weights = multipleRegression(200, .01, arousal_train)
     print('Training Dominance')
-    dominance_weights = multipleRegression(100, .01, dominance_train)
-
-    '''with open('multireg_vad.txt', 'wt', 1) as weightfile:
+    dominance_weights = multipleRegression(200, .01, dominance_train)
+    
+    with open('multireg_vad.txt', 'wt', 1) as weightfile:
         for token in sorted(valence_weights.keys()):
             weightfile.write('{}, {}, {}, {}\n'.format(
                 token,
                 valence_weights[token],
                 arousal_weights[token],
                 dominance_weights[token]
-            ))'''
+            ))
     
     v_terr = 0
     a_terr = 0
     d_terr = 0
-    test_len = len(emobank) - train_len
+    test_len = len(examples) - train_len
     print('Test MSE over {} items'.format(test_len))
     for i in range(test_len):
         v = dotProduct(valence_weights, valence_test[i][0]) - valence_test[i][1]
@@ -81,20 +72,6 @@ def main():
             print('Valence: {}\nArousal: {}\nDominance: {}\n'.format(v, a, d))
     except EOFError:
         pass
-        
-def recenter(vectors, centroid):
-    adjusted = [collections.defaultdict(float, ex) for ex in vectors]
-    for adj in adjusted:
-        increment(adj, -1, centroid)
-    return adjusted
-
-def RnMean(vectors):
-    w = len(vectors)
-    mean = collections.defaultdict(float)
-    for vec in vectors:
-        for f, v in vec.items():
-            mean[f] += v
-    return collections.defaultdict(float, ((f, v / w) for f, v in mean.items()))
 
 def multipleRegression(steps, step_size, training_set):
     weights = {}
